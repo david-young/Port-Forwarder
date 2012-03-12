@@ -20,9 +20,7 @@ Node *create_node_with_data(void *data) {
 	new_node->parent = NULL;
 	new_node->left = NULL;
 	new_node->right = NULL;
-	new_node->n_nodes_left = 0;
-	new_node->n_nodes_right = 0;
-	
+
 	return new_node;
 }
 
@@ -46,7 +44,6 @@ Node *add_object_to_tree(void *object, Node *tree_head) {
 				case -1: /* new_node < current_node: go left */
 					if (current_node->left == NULL) {
 						current_node->left = new_node;
-						current_node->n_nodes_left++;
 					} else {
 						current_node = current_node->left;
 						not_found_yet = 1;
@@ -60,7 +57,6 @@ Node *add_object_to_tree(void *object, Node *tree_head) {
 				case 1: /* new_node > current_node: go right */
 					if (current_node->right == NULL) {
 						current_node->right = new_node;
-						current_node->n_nodes_right++;
 					} else {
 						current_node = current_node->right;
 						not_found_yet = 1;
@@ -74,7 +70,6 @@ Node *add_object_to_tree(void *object, Node *tree_head) {
 		}
 		
 		new_node->parent = current_node;
-		update_parent_node_counts(current_node, +1);
 	}
 	
 	return new_node;
@@ -116,7 +111,6 @@ void *delete_node(Node *node_to_delete) {
 	Node *current_node;
 	void *data;
 	
-	update_parent_node_counts(node_to_delete, -1);
 	current_node = node_to_delete->parent;
 	
 	if (node_to_delete->left == NULL && node_to_delete->right == NULL) {
@@ -134,23 +128,24 @@ void *delete_node(Node *node_to_delete) {
 	free(node_to_delete);
 }
 
-/* rework this function. doesn't seem to work right */
-int update_parent_node_counts(Node *current_node, int difference) {
-	int n_nodes_updated = 0;
+int n_side_children(Node *node, int side) {
+	Node *current_node = node;
+	int count = 0;
 	
-	while (current_node->parent != NULL) { /* if null, we're in the head node */
-		if (current_node == current_node->parent->left) {
-			current_node->parent->n_nodes_left += difference;
-		} else if (current_node == current_node->parent->right) {
-			current_node->parent->n_nodes_right += difference;
-		} else {
-			fprintf(stderr, "This point should never be reached unless the tree is corrupt.\n");
-			return 0;
+	if (side == LEFT) {
+		while (current_node->left != NULL) {
+			current_node = current_node->left;
+			count++;
 		}
-		
-		n_nodes_updated++;
-		current_node = current_node->parent;
+	} else if (side == RIGHT) {
+		while (current_node->right != NULL) {
+			current_node = current_node->right;
+			count++;
+		}
+	} else {
+		/* this should never happen */
 	}
+
 	
-	return n_nodes_updated;
+	return count;
 }

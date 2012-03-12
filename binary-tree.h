@@ -5,12 +5,13 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+#define LEFT 0
+#define RIGHT 1
+
 typedef struct node {
 	struct node *parent; /* pointer to parent node */
 	struct node *left; /* pointer to left child */
 	struct node *right; /* pointer to right child */
-	uint32_t n_nodes_left; /* counter of node->left->left->left... */
-	uint32_t n_nodes_right; /* counter of node->right->right->right... */
 	void *data; /* pointer to data. void* so it can hold anything */
 } Node;
 
@@ -22,5 +23,6 @@ Node *add_object_to_tree(void *object, Node *tree_head);
 Node *find_node(void *object, Node *tree_head);
 void *delete_node(Node *node_to_delete);
 int update_parent_node_counts(Node *current_node, int difference);
+int n_side_children(Node *node, int side);
 
 #endif
