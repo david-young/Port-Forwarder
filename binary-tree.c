@@ -76,7 +76,7 @@ Node *add_object_to_tree(void *object, Node *tree_head) {
 }
 
 Node *find_node(void *object, Node *tree_head) {
-	Node *current_node;
+	Node *current_node = tree_head;
 	
 	while (1) {
 		switch (__compare_func(object, current_node->data)) {
@@ -107,27 +107,49 @@ Node *find_node(void *object, Node *tree_head) {
 	}
 }
 
-void *delete_node(Node *node_to_delete) {
+int delete_node(Node *node_to_delete) {
 	Node *current_node;
-	void *data;
+	int skip = 0, n_children;
 	
-	current_node = node_to_delete->parent;
-	
-	if (node_to_delete->left == NULL && node_to_delete->right == NULL) {
+	if (node_to_delete == NULL) {
+		return 0; /* nothing to do */
+	} else if (node_to_delete->left == NULL && node_to_delete->right == NULL) {
 		/* no children makes it a lot easier */
+		current_node = node_to_delete->parent;
 		if (node_to_delete == current_node->left) {
 			current_node->left = NULL;
 		} else if (node_to_delete == current_node->right) {
 			current_node->right = NULL;
+		} else { /* we have a corrupted tree */
+			return -1;
 		}
-	} else if (0) {
-		/* do something */
+		skip = 1;
+	} else if ((n_children = n_side_children(node_to_delete->left, RIGHT)) == 0 ||
+			   n_side_children(node_to_delete->right, LEFT) > n_children) {
+		/* node_to_delete->left will replace node_to_delete */
+		current_node = node_to_delete->left;
+	} else {
+		/* node_to_delete->right will replace node_to_delete */
+		current_node = node_to_delete->right;
 	}
 	
-	data = node_to_delete->data;
+	if (!skip && node_to_delete->parent != NULL) { /* if not head node */
+		current_node->parent = node_to_delete->parent;
+		
+		if (node_to_delete == node_to_delete->parent->left) {
+			node_to_delete->parent->left = current_node;
+		} else if (node_to_delete == node_to_delete->parent->right) {
+			node_to_delete->parent->right = current_node;
+		}
+	}
+
+	free(node_to_delete->data);
 	free(node_to_delete);
+	
+	return 1;
 }
 
+/* node->left = 1, node->left->left = 2, node->left->left->left = 3, etc */
 int n_side_children(Node *node, int side) {
 	Node *current_node = node;
 	int count = 0;
@@ -142,10 +164,7 @@ int n_side_children(Node *node, int side) {
 			current_node = current_node->right;
 			count++;
 		}
-	} else {
-		/* this should never happen */
 	}
 
-	
 	return count;
 }

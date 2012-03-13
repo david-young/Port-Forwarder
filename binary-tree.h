@@ -21,7 +21,7 @@ int config_tree(int (*compare_func)(void *, void *));
 Node *create_node_with_data(void *data);
 Node *add_object_to_tree(void *object, Node *tree_head);
 Node *find_node(void *object, Node *tree_head);
-void *delete_node(Node *node_to_delete);
+int delete_node(Node *node_to_delete);
 int update_parent_node_counts(Node *current_node, int difference);
 int n_side_children(Node *node, int side);
 
