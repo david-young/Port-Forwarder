@@ -1,5 +1,23 @@
 #include "binary-tree.h"
 
+/***********************************************************************
+ * Function: create_tree_with_cmp_func
+ *
+ * Date: March 14, 2012
+ *
+ * Revisions: (Date and Description)
+ *
+ * Designer: David Young
+ *
+ * Programmer: David Young
+ *
+ * Interface: BTree * create_tree_with_cmp_func (int (*compare_func)(void *, void *))
+ *        param: int (*compare_func)(void *, void *) - comparison function for BTree
+ *
+ * Returns: (BTree *) - Pointer to newly allocated BTree struct. NULL on error
+ *
+ * Notes: 
+ **********************************************************************/
 BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *)) {
 	BTree *btree;
 	
@@ -16,6 +34,25 @@ BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *)) {
 	return btree;
 }
 
+/***********************************************************************
+ * Function: create_node_with_data
+ *
+ * Date: March 14, 2012
+ *
+ * Revisions: (Date and Description)
+ *
+ * Designer: David Young
+ *
+ * Programmer: David Young
+ *
+ * Interface: Node * create_node_with_data (void *data, uint32_t data_len)
+ *        param: void *data - void pointer to data to store
+ *        param: uint32_t data_len - byte size of data to store
+ *
+ * Returns: (Node *) - Pointer to newly created node. NULL on error
+ *
+ * Notes: 
+ **********************************************************************/
 Node *create_node_with_data(void *data, uint32_t data_len) {
 	Node *new_node;
 	
@@ -37,6 +74,27 @@ Node *create_node_with_data(void *data, uint32_t data_len) {
 	return new_node;
 }
 
+/***********************************************************************
+ * Function: add_object_to_tree
+ *
+ * Date: March 14, 2012
+ *
+ * Revisions: (Date and Description)
+ *
+ * Designer: David Young
+ *
+ * Programmer: David Young
+ *
+ * Interface: Node * add_object_to_tree (void *object, uint32_t obj_size, BTree *tree)
+ *        param: void *object - void pointer to object to add
+ *        param: uint32_t obj_size - size of object
+ *        param: BTree *tree - pointer to BTree struct
+ *
+ * Returns: (Node *) - pointer to new node holding the added object.
+ *		  NULL on error.
+ *
+ * Notes: 
+ **********************************************************************/
 Node *add_object_to_tree(void *object, uint32_t obj_size, BTree *tree) {
 	Node *new_node;
 	Node *current_node;
@@ -92,6 +150,25 @@ Node *add_object_to_tree(void *object, uint32_t obj_size, BTree *tree) {
 	return new_node;
 }
 
+/***********************************************************************
+ * Function: find_node
+ *
+ * Date: March 14, 2012
+ *
+ * Revisions: (Date and Description)
+ *
+ * Designer: David Young
+ *
+ * Programmer: David Young
+ *
+ * Interface: Node * find_node (void *object, BTree *tree)
+ *        param: void *object - void pointer to object to find
+ *        param: BTree *tree - pointer to binary tree to find node in
+ *
+ * Returns: (Node *) - pointer to node that was found. NULL if not found
+ *
+ * Notes: 
+ **********************************************************************/
 Node *find_node(void *object, BTree *tree) {
 	Node *current_node = tree->head;
 	
@@ -124,6 +201,25 @@ Node *find_node(void *object, BTree *tree) {
 	}
 }
 
+/***********************************************************************
+ * Function: delete_node
+ *
+ * Date: March 14, 2012
+ *
+ * Revisions: (Date and Description)
+ *
+ * Designer: David Young
+ *
+ * Programmer: David Young
+ *
+ * Interface: int  delete_node (Node *node_to_delete, BTree *tree)
+ *        param: Node *node_to_delete - pointer to node to be deleted
+ *        param: BTree *tree - tree to delete the node from
+ *
+ * Returns: (int ) - (-1) on error, 0 if nothing to do, or 1 if successful
+ *
+ * Notes: 
+ **********************************************************************/
 int delete_node(Node *node_to_delete, BTree *tree) {
 	Node *current_node;
 	int skip = 0, n_children;
@@ -171,7 +267,25 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 	return 1;
 }
 
-/* node->left = 1, node->left->left = 2, node->left->left->left = 3, etc */
+/***********************************************************************
+ * Function: n_side_children
+ *
+ * Date: March 14, 2012
+ *
+ * Revisions: (Date and Description)
+ *
+ * Designer: David Young
+ *
+ * Programmer: David Young
+ *
+ * Interface: int  n_side_children (Node *node, int side)
+ *        param: Node *node - pointer to node to delete
+ *        param: int side - LEFT or RIGHT
+ *
+ * Returns: (int ) - how many child nodes are down the specified side
+ *
+ * Notes: node->left = 1, node->left->left = 2, etc...
+ **********************************************************************/
 int n_side_children(Node *node, int side) {
 	Node *current_node = node;
 	int count = 0;
