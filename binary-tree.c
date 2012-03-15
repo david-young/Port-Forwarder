@@ -1,22 +1,35 @@
 #include "binary-tree.h"
 
-int config_tree(int (*compare_func)(void *, void *)) {
+BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *)) {
+	BTree *btree;
+	
 	if (compare_func == NULL) {
-		return 0;
+		return NULL;
 	}
 	
-	__compare_func = compare_func;
-	return 1;
+	if ((btree = (BTree *)malloc(sizeof(BTree))) != NULL) {
+		btree->head = NULL;
+		btree->n_nodes = 0;
+		btree->__compare_func = compare_func;
+	}
+	
+	return btree;
 }
 
-Node *create_node_with_data(void *data) {
+Node *create_node_with_data(void *data, uint32_t data_len) {
 	Node *new_node;
 	
+	/* malloc for new node */
 	if ((new_node = (Node *)malloc(sizeof(Node))) == NULL) {
 		return NULL;
 	}
 	
-	new_node->data = data;
+	/* malloc for data */
+	if ((new_node->data = malloc(data_len)) == NULL) {
+		return NULL;
+	}
+	
+	memcpy(new_node->data, data, data_len);
 	new_node->parent = NULL;
 	new_node->left = NULL;
 	new_node->right = NULL;
@@ -24,23 +37,25 @@ Node *create_node_with_data(void *data) {
 	return new_node;
 }
 
-Node *add_object_to_tree(void *object, Node *tree_head) {
+Node *add_object_to_tree(void *object, uint32_t obj_size, BTree *tree) {
 	Node *new_node;
 	Node *current_node;
 	int not_found_yet = 1;
 	
-	if ((new_node = create_node_with_data(object)) == NULL) { /* couldn't create */
+	if ((new_node = create_node_with_data(object, obj_size)) == NULL) { /* couldn't create */
 		return NULL;
 	}
 	
-	if (tree_head == NULL) { /* empty tree */
-		tree_head = new_node;
+	if (tree == NULL) { /* Null tree = big problem */
+		return NULL;
+	} else if (tree->head == NULL) { /* empty tree */
+		tree->head = new_node;
 	} else { /* find where this node goes */
-		current_node = tree_head;
+		current_node = tree->head;
 		while (not_found_yet) {
 			not_found_yet = 0;
 			
-			switch (__compare_func(new_node->data, current_node->data)) {
+			switch (tree->__compare_func(new_node->data, current_node->data)) {
 				case -1: /* new_node < current_node: go left */
 					if (current_node->left == NULL) {
 						current_node->left = new_node;
@@ -72,14 +87,16 @@ Node *add_object_to_tree(void *object, Node *tree_head) {
 		new_node->parent = current_node;
 	}
 	
+	tree->n_nodes++;
+	
 	return new_node;
 }
 
-Node *find_node(void *object, Node *tree_head) {
-	Node *current_node = tree_head;
+Node *find_node(void *object, BTree *tree) {
+	Node *current_node = tree->head;
 	
 	while (1) {
-		switch (__compare_func(object, current_node->data)) {
+		switch (tree->__compare_func(object, current_node->data)) {
 			case -1: /* object should be to the left */
 				if (current_node->left != NULL) {
 					current_node = current_node->left;
@@ -107,9 +124,13 @@ Node *find_node(void *object, Node *tree_head) {
 	}
 }
 
-int delete_node(Node *node_to_delete) {
+int delete_node(Node *node_to_delete, BTree *tree) {
 	Node *current_node;
 	int skip = 0, n_children;
+	
+	if (tree == NULL) { /* error */
+		return -1;
+	}
 	
 	if (node_to_delete == NULL) {
 		return 0; /* nothing to do */
@@ -143,6 +164,7 @@ int delete_node(Node *node_to_delete) {
 		}
 	}
 
+	tree->n_nodes--;
 	free(node_to_delete->data);
 	free(node_to_delete);
 	

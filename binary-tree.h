@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <inttypes.h>
 
 #define LEFT 0
@@ -15,13 +16,17 @@ typedef struct node {
 	void *data; /* pointer to data. void* so it can hold anything */
 } Node;
 
-int (*__compare_func)(void *item1, void *item2);
+typedef struct {
+	Node *head;
+	uint32_t n_nodes;
+	int (*__compare_func)(void *item1, void *item2);
+} BTree;
 
-int config_tree(int (*compare_func)(void *, void *));
-Node *create_node_with_data(void *data);
-Node *add_object_to_tree(void *object, Node *tree_head);
-Node *find_node(void *object, Node *tree_head);
-int delete_node(Node *node_to_delete);
+BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *));
+Node *create_node_with_data(void *data, uint32_t data_len);
+Node *add_object_to_tree(void *object, uint32_t obj_size, BTree *tree);
+Node *find_node(void *object, BTree *tree);
+int delete_node(Node *node_to_delete, BTree *tree);
 int update_parent_node_counts(Node *current_node, int difference);
 int n_side_children(Node *node, int side);
 
