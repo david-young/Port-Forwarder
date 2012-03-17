@@ -243,13 +243,14 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 		skip = 1;
 	} else if ((n_children = n_side_children(node_to_delete->left, RIGHT)) == 0 ||
 			   n_side_children(node_to_delete->right, LEFT) > n_children) {
-		/* node_to_delete->left will replace node_to_delete */
-		current_node = node_to_delete->left;
-	} else {
 		/* node_to_delete->right will replace node_to_delete */
 		current_node = node_to_delete->right;
+	} else {
+		/* node_to_delete->left will replace node_to_delete */
+		current_node = node_to_delete->left;
 	}
 	
+	/* adjust parent pointers to new anchor node */
 	if (!skip && node_to_delete->parent != NULL) { /* if not head node */
 		current_node->parent = node_to_delete->parent;
 		
@@ -258,6 +259,23 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 		} else if (node_to_delete == node_to_delete->parent->right) {
 			node_to_delete->parent->right = current_node;
 		}
+	}
+	
+	/* current_node->left->left... = node_to_delete->left ||
+	 current_node->right->right... = node_to_delete->right */
+	
+	if (current_node == node_to_delete->left) {
+		while (current_node->right != NULL) {
+			current_node = current_node->right;
+		}
+		
+		current_node->right = node_to_delete->right;
+	} else if (current_node == node_to_delete->right) {
+		while (current_node->left != NULL) {
+			current_node = current_node->left;
+		}
+		
+		current_node->left = node_to_delete->left;
 	}
 
 	tree->n_nodes--;
