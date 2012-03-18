@@ -22,6 +22,7 @@
 
 	To run the program use this command:
 	$ ./svr
+	program requires a config file to read which contains ips and ports.
 
 	Coding Credit:
 
@@ -55,8 +56,7 @@ int main (int argc, char* argv[])
 	int arg; 
 	int num_fds, fd_new, epoll_fd;
 	static struct epoll_event events[EPOLL_QUEUE_LEN], event;
-//	int port = SERVER_TCP_PORT;
-	struct sockaddr_in remote_addr;
+	struct sockaddr_in remote_addr;//FIXME not sure of this var's purpose
 	socklen_t addr_size = sizeof(struct sockaddr_in);
 	struct sigaction act;
 	pthread_t record;
@@ -93,7 +93,6 @@ int main (int argc, char* argv[])
 	{
 		bzero(&fd_servers[i], sizeof(int));
 
-	//FIXME change it for forwarding rules
 		// Create the listening socket
 		fd_servers[i] = socket (AF_INET, SOCK_STREAM, 0);
 	    	if (fd_servers[i] == -1) 
@@ -107,12 +106,8 @@ int main (int argc, char* argv[])
     		// Make the server listening socket non-blocking
 	    	if (fcntl (fd_servers[i], F_SETFL, O_NONBLOCK | fcntl (fd_servers[i], F_GETFL, 0)) == -1) 
 			SystemFatal("fcntl");
-    	//FIXME requires fixing. forwarding rules are being set in storeipport()
+    	
     		// Bind to the specified listening port
-//    	memset (&addr, 0, sizeof (struct sockaddr_in));//bzero took care of business
-    	//addr.sin_family = AF_INET;
-    	//addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    	//addr.sin_port = htons(port); //FIXME test when new port data handled
 	    	if (bind (fd_servers[i], (struct sockaddr*) &forwardingrules[i], sizeof(forwardingrules[i])) == -1)
 		{
 			printf("%d %s %d\n", i, inet_ntop(AF_INET, &forwardingrules[i].sin_addr, ipbuf, 20), ntohs(forwardingrules[i].sin_port));
@@ -333,7 +328,6 @@ int storeipport(char *ipport)
 {
 	unsigned ip1, ip2, ip3, ip4, port;
 	int m;
-	char fullip[15]; //7 to 15 characters required for ip address
 	m = sscanf(ipport, "%3u.%3u.%3u.%3u:%u", &ip1, &ip2, &ip3, &ip4, &port);
 	if (m != 5)  /* might be able to remove all these checks except for port checks because of inet_pton();*/
 	{	
@@ -359,9 +353,14 @@ int storeipport(char *ipport)
 	forwardingrules[servers].sin_family = AF_INET;
 	forwardingrules[servers].sin_port = htons(port);
 	forwardingrules[servers].sin_addr.s_addr = htonl(INADDR_ANY);
-//FIXME Might need this code for later
+
+/*FIXME Might need this code for later
 //	if (inet_pton(AF_INET, forwardingrules_ip[servers], &forwardingrules[servers].sin_addr) != 1)
 //		return 1;
+
+//bzero took care of business
+//    	memset (&addr, 0, sizeof (struct sockaddr_in));
+*/
 
 //DEBUG TESTING
 //	printf("DEBUG_storeipport_4: <%u> <%s>\n", ntohs(forwardingrules[servers].sin_port), inet_ntop(AF_INET, &forwardingrules[servers].sin_addr, forwardingrules_ip[servers], sizeof(struct sockaddr_in)));//DEBUG testing
