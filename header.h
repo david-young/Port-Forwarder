@@ -8,14 +8,13 @@
 #define MAX_RULES		100	/* max number of portforwarding rules */
 
 //Globals
-int 	i, fd_server, numit; //numit is the number of iterations. Must match clients.
+int 	i, fd_server; //FIXME fd_server should be removed when code is changed
 int 	svr_accept=0, svr_close=0, svr_error=0; // record of accepted, completed clients as well as errors.
 int 	fd_i[EPOLL_QUEUE_LEN];
-int	buflen; //number of characters specified by user
 int	servers = 0;	//number of stored servers. 
 struct sockaddr_in 	forwardingrules[MAX_RULES];
 int			fd_servers[MAX_RULES];
-char			forwardingrules_ip[MAX_RULES][15];//7 to 15 characters required for ip address
+char			forwardingrules_ip[MAX_RULES][15];//7 to 15 characters required for ip address. IPs aren't stored as network ips.
 
 // Function prototypes
 static void SystemFatal (const char* message);
@@ -26,7 +25,7 @@ void close_fd (int);
 void* looprecord(); // uses the 3 integers below to print off efficiency
 
 typedef struct {
-	int src;
+	int src; // fd id
 	int dst;
 } connection;
 
