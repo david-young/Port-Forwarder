@@ -1,29 +1,32 @@
 /*
 	Daniel Smith
 	A00587628
+	David Young
+	A########
 	COMP 8005
-	Assignment 2
-	February 18, 2012
+	Final Project
+	March 10, 2012
 
-	This program runs the epoll server. Clients will connect and
-	send data to the server, in which the server will echo the data back.
-	The client and server will constantly repeat this process until the
-	iterations are up.
+	This program runs the epoll port forwarding server. It will listen to
+	clients that request certain ports. If the port is recognised then
+	the data will be forwarded to the ip specified in the ip/port 
+	config file.
 
 	This program was programmed to work on Linux and uses uses the GMP
 	developer library. If you do not have it installed then type in the
-	following command: "yum install gmp-devel". (Fedora)
+	following command (if you're using Fedora):
+	$ yum install gmp-devel
 	
 	Compile the program by using the make file:
-	"make"
+	$ make
+
+	To run the program use this command:
+	$ ./svr
 
 	Coding Credit:
 
-	The following code was written by Daniel Smith and Aman Abdulla.
-
-	BUGS:
-	Could not echo data more than a few times to the client without
-	breaking the server. This program is not functioning properly.
+	The following code was written by Daniel Smith, David Young 
+	and Aman Abdulla.
 */
 
 #include <pthread.h>
@@ -47,58 +50,56 @@
 #include <signal.h>
 #include "header.h"
 
-#define EPOLL_QUEUE_LEN	256000
-
-
 //Globals
 int 	i, fd_server, numit; //numit is the number of iterations. Must match clients.
 int 	svr_accept=0, svr_close=0, svr_error=0; // record of accepted, completed clients as well as errors.
 int 	fd_i[EPOLL_QUEUE_LEN];
 int	buflen; //number of characters specified by user
+int	servers = 0;	//number of stored servers. 
 
 // Function prototypes
 static void SystemFatal (const char* message);
-static int ClearSocket (int fd);
+static int forwardsocket (int fd);
+static int readconfigfile(char *filename);
+static int storeipport (char *ipport);
 void close_fd (int);
 void* looprecord(); // uses the 3 integers below to print off efficiency
+struct sockaddr_in forwardingrules[MAX_RULES];
 
 int main (int argc, char* argv[]) 
 {
 	int arg; 
 	int num_fds, fd_new, epoll_fd;
 	static struct epoll_event events[EPOLL_QUEUE_LEN], event;
-	int port = SERVER_TCP_PORT;
+//	int port = SERVER_TCP_PORT;
 	struct sockaddr_in addr, remote_addr;
 	socklen_t addr_size = sizeof(struct sockaddr_in);
 	struct sigaction act;
 	pthread_t *record;
+	char *filename;
 
 	switch(argc)
 	{
-		case 3:
-			numit = atoi(argv[1]);
-			buflen = atoi(argv[2]);// length of string sent back and forth per iteration
-			port = SERVER_TCP_PORT;	// Use the default port
+		case 1:
+			filename = DEFAULT_FILENAME;	// Use the default config filename
 		break;
-		case 4:
-			numit = atoi(argv[1]);
-			buflen = atoi(argv[2]);// length of string sent back and forth per iteration
-			port = atoi(argv[3]);	// Get user specified port
+		case 2:
+			filename = argv[1];	// Get user specified port
 		break;
 		default:
-			fprintf(stderr, "Usage: %s number_of_iterations length_of_string [port]\n", argv[0]);
+			fprintf(stderr, "Usage: %s [configfile \"default name is %s\"]\n", argv[0], DEFAULT_FILENAME);
 			exit(1);
 	}
 
-	
+	// store all the server ip and ports
+	if (readconfigfile(filename))
+		SystemFatal("failed to read configfile");
+
 	// set up the signal handler to close the server socket when CTRL-c is received
         act.sa_handler = close_fd;
         act.sa_flags = 0;
         if ((sigemptyset (&act.sa_mask) == -1 || sigaction (SIGINT, &act, NULL) == -1))
-        {
-                perror ("Failed to set SIGINT handler");
-                exit (EXIT_FAILURE);
-        }
+		SystemFatal("Failed to set SIGINT handler");
 	
 	// Create the listening socket
 	fd_server = socket (AF_INET, SOCK_STREAM, 0);
@@ -113,12 +114,12 @@ int main (int argc, char* argv[])
     	// Make the server listening socket non-blocking
     	if (fcntl (fd_server, F_SETFL, O_NONBLOCK | fcntl (fd_server, F_GETFL, 0)) == -1) 
 		SystemFatal("fcntl");
-    	
+    	//FIXME requires fixing. forwarding rules are being set in storeipport()
     	// Bind to the specified listening port
     	memset (&addr, 0, sizeof (struct sockaddr_in));
     	addr.sin_family = AF_INET;
     	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    	addr.sin_port = htons(port);
+    	//addr.sin_port = htons(port); //FIXME test when new port data handled
     	if (bind (fd_server, (struct sockaddr*) &addr, sizeof(addr)) == -1) 
 		SystemFatal("bind");
     	
@@ -148,6 +149,8 @@ int main (int argc, char* argv[])
 			SystemFatal ("Error in epoll_wait!");
 		}
 
+		// FIXME ensure different ports can be used in here
+		//	 it'll involve different server sockets
 		for (i = 0; i < num_fds; i++) 
 		{
 	    		// Case 1: Error condition
@@ -163,6 +166,7 @@ int main (int argc, char* argv[])
 	    		// Case 2: Server is receiving a connection request
 	    		if (events[i].data.fd == fd_server) 
 			{
+				//FIXME check if the port matches config file
 				//socklen_t addr_size = sizeof(remote_addr);
 				fd_new = accept (fd_server, (struct sockaddr*) &remote_addr, &addr_size);
 				if (fd_new == -1) 
@@ -195,9 +199,18 @@ int main (int argc, char* argv[])
 				continue;
 	    		}
 
+/*			FIXME this code deals with the data. Either
+			forward it to server or client
+*/			
+/* 			FIXME how the if statement and forwardsocket
+			is handled might need modification to match when
+			the socket is closed. Socket should only be
+			closed if server is offline or client/server
+			send FIN.
+*/
 	    		// Case 3: One of the sockets has read data
 			//check if fd is still connected
-	    		if (ClearSocket(events[i].data.fd)) 
+	    		if (forwardsocket(events[i].data.fd)) 
 			{
 				// epoll will remove the fd from its set
 				// automatically when the fd is closed
@@ -210,10 +223,15 @@ int main (int argc, char* argv[])
 	exit (EXIT_SUCCESS);
 }
 
-
-static int ClearSocket (int fd) 
+//FIXME write forwarding code. fd is the current file descriptor.
+static int forwardsocket (int fd) 
 {
-	int	n, bytes_to_read;
+
+return 0; //returning 0 = keep socket open. 1 = close socket.
+
+
+
+/*	int	n, bytes_to_read;
 	char	*bp, buf[buflen];
 
 	n = 0;
@@ -239,6 +257,7 @@ static int ClearSocket (int fd)
 		return 0;
 	fd_i[i] = 0;
 	return 1; //close fd
+*/
 }
 
 // Prints the error stored in errno and aborts the program.
@@ -274,5 +293,74 @@ void* looprecord()
 		printf("%s%ld \tErrors: %i \tCompleted: %i \tActive: %i \tCompleted/Update(%is): %i\n", time,tv.tv_usec, svr_error, svr_close, svr_accept-svr_close, RECORDTIME, svr_complete);
 		sleep(RECORDTIME);
 	}
-	return(0);
+	return 0;
 }
+
+/*	Reads each line from the file specified and calls the storeipport
+	function.
+*/
+int readconfigfile(char *filename)
+{
+	FILE *fp;
+	int len; //length of characters in the current line being read
+	char line[64];
+	fp = fopen(filename, "r");
+	if (fp == NULL)
+		SystemFatal("configfile does not exist");
+	while (fgets(line, sizeof line, fp) != NULL)
+	{
+		len = strlen(line);
+		if( line[len-1] == '\n' )
+			line[len-1] = 0;
+
+		// attempt to store current line into forwarding rules
+		if (storeipport(line))
+			printf("<configfile:%s> incorrect syntax. \"192.168.0.1:80\"\n", line);
+		else
+			printf("%s successfully added to forwarding rules.\n", line);
+	}
+		// increment servers for every successful ipport added
+	if (fclose(fp))
+		SystemFatal("configfile failed to close");
+	return 0;
+}
+
+/* 	verifies the config file's current line which supplies the ip and port in
+	this format: 192.168.0.11:80. If the line is correct then store ip and
+	port into list.
+*/
+int storeipport(char *ipport)
+{
+	unsigned ip1, ip2, ip3, ip4, port;
+	int m;
+	char fullip[15]; //7 to 15 characters required for ip address
+	m = sscanf(ipport, "%3u.%3u.%3u.%3u:%u", &ip1, &ip2, &ip3, &ip4, &port);
+	if (m != 5)
+	{	
+		printf("DEBUG_storeipport_1: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); //DEBUG testing
+		return 1;
+	}
+	
+	if ((ip1 | ip2 | ip3 | ip4) > MAXIP || port > MAXPORT)
+	{	
+		printf("DEBUG_storeipport_2: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); //DEBUG testing
+		return 1;
+	}
+
+	if (strspn(ipport, "0123456789.:\n\r") < strlen(ipport))
+	{	
+		printf("DEBUG_storeipport_3: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); //DEBUG testing
+		return 1;
+	}
+	// UNTESTED
+	// ip and port are good. Add data to list. 
+	sprintf(fullip, "%u.%u.%u.%u", ip1, ip2, ip3, ip4);
+	forwardingrules[servers].sin_family = AF_INET;
+	forwardingrules[servers].sin_port = htons(port);
+	forwardingrules[servers].sin_addr.s_addr = inet_addr(fullip); //FIXME assuming inet_addr converts a string in dotted-decimal notation (130.113.68.1) to a 32-bit Internet address.
+	servers++;
+	//printf(ipport);//DEBUG 
+
+	return 0;
+}
+
