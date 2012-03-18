@@ -354,15 +354,18 @@ int storeipport(char *ipport)
 	}
 	// UNTESTED
 	// ip and port are good. Add data to list. 
-	sprintf(fullip, "%u.%u.%u.%u", ip1, ip2, ip3, ip4);
+	sprintf(forwardingrules_ip[servers], "%u.%u.%u.%u", ip1, ip2, ip3, ip4);
 	bzero(&forwardingrules[servers], sizeof(struct sockaddr_in));
 	forwardingrules[servers].sin_family = AF_INET;
 	forwardingrules[servers].sin_port = htons(port);
-	if (inet_pton(AF_INET, fullip, &forwardingrules[servers].sin_addr) != 1)
-		return 1;
-//	printf("DEBUG_storeipport_4: <%u> <%s>\n", ntohs(forwardingrules[servers].sin_port), inet_ntop(AF_INET, &forwardingrules[servers].sin_addr, fullip, sizeof(struct sockaddr_in)));//DEBUG testing
+	forwardingrules[servers].sin_addr.s_addr = htonl(INADDR_ANY);
+//FIXME Might need this code for later
+//	if (inet_pton(AF_INET, forwardingrules_ip[servers], &forwardingrules[servers].sin_addr) != 1)
+//		return 1;
+
+//DEBUG TESTING
+//	printf("DEBUG_storeipport_4: <%u> <%s>\n", ntohs(forwardingrules[servers].sin_port), inet_ntop(AF_INET, &forwardingrules[servers].sin_addr, forwardingrules_ip[servers], sizeof(struct sockaddr_in)));//DEBUG testing
 	servers++;
-	//printf(ipport);//DEBUG 
 
 	return 0;
 }

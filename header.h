@@ -1,6 +1,6 @@
 #define TRUE 		1
 #define FALSE 		0
-#define	RECORDTIME	5	// sleep timer on thread that loops the server status
+#define	RECORDTIME	10	// sleep timer on thread that loops the server status
 #define EPOLL_QUEUE_LEN		256000
 #define MAXPORT 		65535 // remember that 0 is not a valid port
 #define MAXIP			255
@@ -15,6 +15,7 @@ int	buflen; //number of characters specified by user
 int	servers = 0;	//number of stored servers. 
 struct sockaddr_in 	forwardingrules[MAX_RULES];
 int			fd_servers[MAX_RULES];
+char			forwardingrules_ip[MAX_RULES][15];//7 to 15 characters required for ip address
 
 // Function prototypes
 static void SystemFatal (const char* message);
