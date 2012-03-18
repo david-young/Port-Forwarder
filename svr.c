@@ -50,34 +50,18 @@
 #include <signal.h>
 #include "header.h"
 
-//Globals
-int 	i, fd_server, numit; //numit is the number of iterations. Must match clients.
-int 	svr_accept=0, svr_close=0, svr_error=0; // record of accepted, completed clients as well as errors.
-int 	fd_i[EPOLL_QUEUE_LEN];
-int	buflen; //number of characters specified by user
-int	servers = 0;	//number of stored servers. 
-
-// Function prototypes
-static void SystemFatal (const char* message);
-static int forwardsocket (int fd);
-static int readconfigfile(char *filename);
-static int storeipport (char *ipport);
-void close_fd (int);
-void* looprecord(); // uses the 3 integers below to print off efficiency
-
-struct sockaddr_in forwardingrules[MAX_RULES];
-
 int main (int argc, char* argv[]) 
 {
 	int arg; 
 	int num_fds, fd_new, epoll_fd;
 	static struct epoll_event events[EPOLL_QUEUE_LEN], event;
 //	int port = SERVER_TCP_PORT;
-	struct sockaddr_in addr, remote_addr;
+	struct sockaddr_in remote_addr;
 	socklen_t addr_size = sizeof(struct sockaddr_in);
 	struct sigaction act;
 	pthread_t record;
 	char *filename;
+	char ipbuf[20];
 
 	switch(argc)
 	{
@@ -96,7 +80,7 @@ int main (int argc, char* argv[])
 	if (readconfigfile(filename))
 		SystemFatal("failed to read configfile");
 
-	if (servers==0)
+	if (servers<=0)
 		SystemFatal("no forwarding rules");
 
 	// set up the signal handler to close the server socket when CTRL-c is received
@@ -104,46 +88,58 @@ int main (int argc, char* argv[])
         act.sa_flags = 0;
         if ((sigemptyset (&act.sa_mask) == -1 || sigaction (SIGINT, &act, NULL) == -1))
 		SystemFatal("Failed to set SIGINT handler");
-	
-	// Create the listening socket
-	fd_server = socket (AF_INET, SOCK_STREAM, 0);
-    	if (fd_server == -1) 
-		SystemFatal("socket");
+	//handle all ports supplied in the forwarding rules
+	for(i = 0; i < servers; i++)
+	{
+		bzero(&fd_servers[i], sizeof(int));
+
+	//FIXME change it for forwarding rules
+		// Create the listening socket
+		fd_servers[i] = socket (AF_INET, SOCK_STREAM, 0);
+	    	if (fd_servers[i] == -1) 
+			SystemFatal("socket");
     	
-    	// set SO_REUSEADDR so port can be resused imemediately after exit, i.e., after CTRL-c
-    	arg = 1;
-    	if (setsockopt (fd_server, SOL_SOCKET, SO_REUSEADDR, &arg, sizeof(arg)) == -1) 
-		SystemFatal("setsockopt");
+    		// set SO_REUSEADDR so port can be resused immediately after exit, i.e., after CTRL-c
+	    	arg = 1;
+	    	if (setsockopt (fd_servers[i], SOL_SOCKET, SO_REUSEADDR, &arg, sizeof(arg)) == -1) 
+			SystemFatal("setsockopt");
     	
-    	// Make the server listening socket non-blocking
-    	if (fcntl (fd_server, F_SETFL, O_NONBLOCK | fcntl (fd_server, F_GETFL, 0)) == -1) 
-		SystemFatal("fcntl");
+    		// Make the server listening socket non-blocking
+	    	if (fcntl (fd_servers[i], F_SETFL, O_NONBLOCK | fcntl (fd_servers[i], F_GETFL, 0)) == -1) 
+			SystemFatal("fcntl");
     	//FIXME requires fixing. forwarding rules are being set in storeipport()
-    	// Bind to the specified listening port
-    	memset (&addr, 0, sizeof (struct sockaddr_in));
-    	addr.sin_family = AF_INET;
-    	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    		// Bind to the specified listening port
+//    	memset (&addr, 0, sizeof (struct sockaddr_in));//bzero took care of business
+    	//addr.sin_family = AF_INET;
+    	//addr.sin_addr.s_addr = htonl(INADDR_ANY);
     	//addr.sin_port = htons(port); //FIXME test when new port data handled
-    	if (bind (fd_server, (struct sockaddr*) &addr, sizeof(addr)) == -1) 
-		SystemFatal("bind");
+	    	if (bind (fd_servers[i], (struct sockaddr*) &forwardingrules[i], sizeof(forwardingrules[i])) == -1)
+		{
+			printf("%d %s %d\n", i, inet_ntop(AF_INET, &forwardingrules[i].sin_addr, ipbuf, 20), ntohs(forwardingrules[i].sin_port));
+			SystemFatal("bind");
+		}
     	
-    	// Listen for fd_news; SOMAXCONN is 128 by default
-    	if (listen (fd_server, SOMAXCONN) == -1) 
-		SystemFatal("listen");
-    	pthread_create(&record, NULL, looprecord, NULL); //start thread which loops the server's connection status
-    	// Create the epoll file descriptor
-    	epoll_fd = epoll_create(EPOLL_QUEUE_LEN);
-    	if (epoll_fd == -1) 
-		SystemFatal("epoll_create");
+    		// Listen for fd_news; SOMAXCONN is 128 by default
+	    	if (listen (fd_servers[i], SOMAXCONN) == -1) 
+			SystemFatal("listen");
+
+    		// Create the epoll file descriptor
+	    	epoll_fd = epoll_create(EPOLL_QUEUE_LEN);
+	    	if (epoll_fd == -1) 
+			SystemFatal("epoll_create");
     	
-    	// Add the server socket to the epoll event loop
-    	event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLET;
-    	event.data.fd = fd_server;
-    	if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd_server, &event) == -1) 
-		SystemFatal("epoll_ctl");
-    	
+    		// Add the server socket to the epoll event loop
+	    	event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLET;
+	    	event.data.fd = fd_servers[i];
+	    	if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd_servers[i], &event) == -1) 
+			SystemFatal("epoll_ctl");
+	}    	
+	
+	//start thread which loops the server's connection status
+	pthread_create(&record, NULL, looprecord, NULL); 
+
 	// Execute the epoll event loop
-    	while (TRUE) 
+    	while (servers > 0) 
 	{
 		//struct epoll_event events[MAX_EVENTS];
 		num_fds = epoll_wait (epoll_fd, events, EPOLL_QUEUE_LEN, -1);
@@ -364,8 +360,7 @@ int storeipport(char *ipport)
 	forwardingrules[servers].sin_port = htons(port);
 	if (inet_pton(AF_INET, fullip, &forwardingrules[servers].sin_addr) != 1)
 		return 1;
-		 //FIXME assuming inet_addr converts a string in dotted-decimal notation (130.113.68.1) to a 32-bit Internet address.
-	
+//	printf("DEBUG_storeipport_4: <%u> <%s>\n", ntohs(forwardingrules[servers].sin_port), inet_ntop(AF_INET, &forwardingrules[servers].sin_addr, fullip, sizeof(struct sockaddr_in)));//DEBUG testing
 	servers++;
 	//printf(ipport);//DEBUG 
 

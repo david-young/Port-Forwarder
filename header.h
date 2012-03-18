@@ -7,4 +7,25 @@
 #define DEFAULT_FILENAME	"servers.config"
 #define MAX_RULES		100	// max number of portforwarding rules
 
+//Globals
+int 	i, fd_server, numit; //numit is the number of iterations. Must match clients.
+int 	svr_accept=0, svr_close=0, svr_error=0; // record of accepted, completed clients as well as errors.
+int 	fd_i[EPOLL_QUEUE_LEN];
+int	buflen; //number of characters specified by user
+int	servers = 0;	//number of stored servers. 
+struct sockaddr_in 	forwardingrules[MAX_RULES];
+int			fd_servers[MAX_RULES];
+
+// Function prototypes
+static void SystemFatal (const char* message);
+static int forwardsocket (int fd);
+static int readconfigfile(char *filename);
+static int storeipport (char *ipport);
+void close_fd (int);
+void* looprecord(); // uses the 3 integers below to print off efficiency
+
+typedef struct {
+	int src;
+	int dst;
+} connection;
 
