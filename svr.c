@@ -2,7 +2,7 @@
 	Daniel Smith
 	A00587628
 	David Young
-	A########
+	A00551119
 	COMP 8005
 	Final Project
 	March 10, 2012
@@ -64,6 +64,7 @@ static int readconfigfile(char *filename);
 static int storeipport (char *ipport);
 void close_fd (int);
 void* looprecord(); // uses the 3 integers below to print off efficiency
+
 struct sockaddr_in forwardingrules[MAX_RULES];
 
 int main (int argc, char* argv[]) 
@@ -75,7 +76,7 @@ int main (int argc, char* argv[])
 	struct sockaddr_in addr, remote_addr;
 	socklen_t addr_size = sizeof(struct sockaddr_in);
 	struct sigaction act;
-	pthread_t *record;
+	pthread_t record;
 	char *filename;
 
 	switch(argc)
@@ -94,6 +95,9 @@ int main (int argc, char* argv[])
 	// store all the server ip and ports
 	if (readconfigfile(filename))
 		SystemFatal("failed to read configfile");
+
+	if (servers==0)
+		SystemFatal("no forwarding rules");
 
 	// set up the signal handler to close the server socket when CTRL-c is received
         act.sa_handler = close_fd;
@@ -335,7 +339,7 @@ int storeipport(char *ipport)
 	int m;
 	char fullip[15]; //7 to 15 characters required for ip address
 	m = sscanf(ipport, "%3u.%3u.%3u.%3u:%u", &ip1, &ip2, &ip3, &ip4, &port);
-	if (m != 5)
+	if (m != 5)  /* might be able to remove all these checks except for port checks because of inet_pton();*/
 	{	
 		printf("DEBUG_storeipport_1: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); //DEBUG testing
 		return 1;
@@ -355,9 +359,13 @@ int storeipport(char *ipport)
 	// UNTESTED
 	// ip and port are good. Add data to list. 
 	sprintf(fullip, "%u.%u.%u.%u", ip1, ip2, ip3, ip4);
+	bzero(&forwardingrules[servers], sizeof(struct sockaddr_in));
 	forwardingrules[servers].sin_family = AF_INET;
 	forwardingrules[servers].sin_port = htons(port);
-	forwardingrules[servers].sin_addr.s_addr = inet_addr(fullip); //FIXME assuming inet_addr converts a string in dotted-decimal notation (130.113.68.1) to a 32-bit Internet address.
+	if (inet_pton(AF_INET, fullip, &forwardingrules[servers].sin_addr) != 1)
+		return 1;
+		 //FIXME assuming inet_addr converts a string in dotted-decimal notation (130.113.68.1) to a 32-bit Internet address.
+	
 	servers++;
 	//printf(ipport);//DEBUG 
 
