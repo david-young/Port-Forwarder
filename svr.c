@@ -62,6 +62,13 @@ int main (int argc, char* argv[])
 	pthread_t record;
 	char *filename;
 	char ipbuf[20];
+	BTree *tree;
+	connection conn;
+
+	if ((tree = create_tree_with_cmp_func(comp)) == NULL) {
+		fprintf(stderr, "Couldn't create BinaryTree. Exiting...\n");
+		return 1;
+	}
 
 	switch(argc)
 	{
@@ -137,68 +144,65 @@ int main (int argc, char* argv[])
 	// Execute the epoll event loop
     	while (servers > 0) 
 	{
-		printf("%d\n", __LINE__);
 		//struct epoll_event events[MAX_EVENTS];
 		num_fds = epoll_wait (epoll_fd, events, EPOLL_QUEUE_LEN, -1);
-		printf("%d\n", __LINE__);
 		if (num_fds < 0) 
 		{
-printf("%d\n", __LINE__);
+
 			++svr_error;
 			SystemFatal ("Error in epoll_wait!");
 		}
-printf("%d\n", __LINE__);		
+
 		// FIXME ensure different ports can be used in here
 		//	 it'll involve different server sockets
 		for (i = 0; i < num_fds; i++) 
 		{
-printf("%d\n", __LINE__);
+
 	    		// Case 1: Error condition
 	    		if (events[i].events & (EPOLLHUP | EPOLLERR)) 
 			{
-printf("%d\n", __LINE__);
+
 				++svr_error;
 				fputs("epoll: EPOLLERR", stderr);
 				close(events[i].data.fd);
 				continue;
 	    		}
-printf("%d\n", __LINE__);
+
 	    		assert (events[i].events & EPOLLIN);
 
 			for (y = 0; y < servers; y++)
 			{
-printf("%d\n", __LINE__);
+
 		    		// Case 2: Server is receiving a connection request
 		    		if (events[i].data.fd == fd_servers[y]) 
 				{
-printf("%d\n", __LINE__);
+
 					bzero(&remote_addr, sizeof(struct sockaddr_in));
 					//FIXME check if the port matches forward rules
 					//socklen_t addr_size = sizeof(remote_addr);
 					fd_new = accept (fd_servers[y], (struct sockaddr*) &remote_addr, &addr_size);
-printf("%d\n", __LINE__);
+
 					if (fd_new == -1) 
 					{
-printf("%d\n", __LINE__);
+
 		    				if (errno != EAGAIN && errno != EWOULDBLOCK) 
 						{
-printf("%d\n", __LINE__);
+
 							++svr_error;
 							perror("accept");
 		    				}
-printf("%d\n", __LINE__);
+
 						cont++;
 		    				break;
 					}
-printf("%d\n", __LINE__);
+
 					// Make the fd_new non-blocking
 					if (fcntl (fd_new, F_SETFL, O_NONBLOCK | fcntl(fd_new, F_GETFL, 0)) == -1) 
 					{
-printf("%d\n", __LINE__);
 						++svr_error;
 						SystemFatal("fcntl");
 					}
-printf("%d\n", __LINE__);
+
 					// Add the new socket descriptor to the epoll loop
 					event.data.fd = fd_new;
 					++svr_accept;
@@ -209,7 +213,7 @@ printf("%d\n", __LINE__);
 					}
 				
 					printf("Remote Address:  %s\n", inet_ntop(AF_INET, &remote_addr.sin_addr, ipbuf, 20));//DEBUG
-					/* add fd_new to btree & connect to appropriate server */
+					/* add fd_new and sock to btree & connect to appropriate server */
 					
 					if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 						SystemFatal("Couldn't create server socket");
@@ -221,6 +225,27 @@ printf("%d\n", __LINE__);
 						--svr_accept;
 						//shutdown (events[i].data.fd, SHUT_RDWR);
 						close (events[i].data.fd);
+					} else {
+						/* Make the new socket non-blocking */
+				    	if (fcntl (sock, F_SETFL, O_NONBLOCK | fcntl (sock, F_GETFL, 0)) == -1) 
+							SystemFatal("fcntl sock");
+
+						/* add sock to epoll fd */
+				    	event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLET;
+				    	event.data.fd = sock;
+				    	if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, sock, &event) == -1) 
+							SystemFatal("epoll_ctl");
+
+						conn.src = fd_new;
+						conn.dst = sock;
+						if (add_object_to_tree((void *)&conn, sizeof(conn), tree) == NULL) {
+							fprintf(stderr, "Unable to add node\n");
+						}
+						conn.src = sock;
+						conn.dst = fd_new;
+						if (add_object_to_tree((void *)&conn, sizeof(conn), tree) == NULL) {
+							fprintf(stderr, "Unable to add node\n");
+						}
 					}
 					cont++;
 					break;
@@ -242,8 +267,7 @@ printf("%d\n", __LINE__);
 */
 	    		// Case 3: One of the sockets has read data
 			//check if fd is still connected
-printf("%d\n", __LINE__);
-	    		if (forwardsocket(events[i].data.fd)) 
+	    		if (forwardsocket(events[i].data.fd, tree)) 
 			{
 				// epoll will remove the fd from its set
 				// automatically when the fd is closed
@@ -256,11 +280,53 @@ printf("%d\n", __LINE__);
 	return 0;
 }
 
-//FIXME write forwarding code. fd is the current file descriptor.
-static int forwardsocket (int fd) 
+/*	fd is the current file descriptor.
+	returning 0 = keep socket open. 1 = close socket.	*/
+static int forwardsocket (int fd, BTree *tree) 
 {
-printf("%d\n", __LINE__);
-return 0; //returning 0 = keep socket open. 1 = close socket.
+	int n = 0;
+	char	buf[BUFLEN];
+	int n_sent = 0, n_totalsent = 0;
+	Node *node;
+	connection conn;
+
+	/* read from fd */
+	if ((n = recv (fd, buf, BUFLEN, 0)) == 0) //EOF
+	{
+		return 1;
+	} else if (n == -1 && errno != EAGAIN)	/* error */
+	{
+		perror("recv failed");
+		return 1;
+	} else if (n == -1 && errno == EAGAIN)	/* nothing to read right now */
+	{
+		return 0;
+	}
+	
+
+	/* find fd in btree */
+	conn.src = fd;
+	if ((node = find_node(&conn, tree)) == NULL) {
+		fprintf(stderr, "Couldn't find node\n");
+		return 1;
+	}
+
+	bzero(&conn, sizeof(connection));
+	memcpy(&conn, node->data, sizeof(connection));
+
+	/* send to destination */
+	/* send on conn.dst */
+	while (n_totalsent != n && (n_sent = send (conn.dst, buf+n_totalsent, n-n_totalsent, 0)) != -1)
+	{
+		n_totalsent += n_sent;
+	}
+
+	if (n_sent == -1) {
+		perror("send");
+	}
+
+	return 0; 
+}
 
 
 
@@ -290,8 +356,9 @@ return 0; //returning 0 = keep socket open. 1 = close socket.
 		return 0;
 	fd_i[i] = 0;
 	return 1; //close fd
-*/
+
 }
+*/
 
 // Prints the error stored in errno and aborts the program.
 static void SystemFatal(const char* message) 
@@ -415,3 +482,17 @@ int storeipport(char *ipport)
 	return 0;
 }
 
+int comp(void *p1, void *p2) {
+	connection *c1, *c2;
+	c1 = (connection *)p1;
+	c2 = (connection *)p2;
+	
+	if (c1->src > c2->src) {
+		return 1;
+	} else if (c1->src == c2->src) {
+		return 0;
+	} else {
+		return -1;
+	}
+
+}

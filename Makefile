@@ -7,7 +7,7 @@ all: binary-tree svr
 binary-tree: binary-tree.o btree-test.o
 	$(CC) $^ -o $@ $(CLIBS)
 
-svr: svr.o
+svr: svr.o binary-tree.o
 	$(CC) $^ -o $@ $(CLIBS)
 
 .c.o:

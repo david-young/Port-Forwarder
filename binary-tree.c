@@ -57,12 +57,12 @@ Node *create_node_with_data(void *data, uint32_t data_len) {
 	Node *new_node;
 	
 	/* malloc for new node */
-	if ((new_node = (Node *)malloc(sizeof(Node))) == NULL) {
+	if ((new_node = (Node *)calloc(1, sizeof(Node))) == NULL) {
 		return NULL;
 	}
 	
 	/* malloc for data */
-	if ((new_node->data = malloc(data_len)) == NULL) {
+	if ((new_node->data = calloc(1, data_len)) == NULL) {
 		return NULL;
 	}
 	
