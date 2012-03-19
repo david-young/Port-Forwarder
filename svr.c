@@ -286,23 +286,9 @@ static int forwardsocket (int fd, BTree *tree)
 {
 	int n = 0;
 	char	buf[BUFLEN];
-	int n_sent = 0, n_totalsent = 0;
+	int n_sent, n_totalsent;
 	Node *node;
 	connection conn;
-
-	/* read from fd */
-	if ((n = recv (fd, buf, BUFLEN, 0)) == 0) //EOF
-	{
-		return 1;
-	} else if (n == -1 && errno != EAGAIN)	/* error */
-	{
-		perror("recv failed");
-		return 1;
-	} else if (n == -1 && errno == EAGAIN)	/* nothing to read right now */
-	{
-		return 0;
-	}
-	
 
 	/* find fd in btree */
 	conn.src = fd;
@@ -314,17 +300,34 @@ static int forwardsocket (int fd, BTree *tree)
 	bzero(&conn, sizeof(connection));
 	memcpy(&conn, node->data, sizeof(connection));
 
-	/* send to destination */
-	/* send on conn.dst */
-	while (n_totalsent != n && (n_sent = send (conn.dst, buf+n_totalsent, n-n_totalsent, 0)) != -1)
+	/* read from fd */
+	while ((n = recv (fd, buf, BUFLEN, 0)) > 0)
 	{
-		n_totalsent += n_sent;
+		/* send to destination */
+		/* send on conn.dst */
+		n_sent = 0, n_totalsent = 0;
+		while (n_totalsent != n && (n_sent = send (conn.dst, buf+n_totalsent, n-n_totalsent, 0)) != -1)
+		{
+			n_totalsent += n_sent;
+		}
+
+		if (n_sent == -1) {
+			perror("send");
+		}
 	}
 
-	if (n_sent == -1) {
-		perror("send");
+	if (n == 0) //EOF
+	{
+		return 1;
+	} else if (n == -1 && errno != EAGAIN)	/* error */
+	{
+		perror("recv failed");
+		return 1;
+	} else if (n == -1 && errno == EAGAIN)	/* nothing to read right now */
+	{
+		return 0;
 	}
-
+	
 	return 0; 
 }
 
