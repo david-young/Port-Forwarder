@@ -17,4 +17,4 @@ clean:
 	rm -f *.o binary-tree svr core* *~
 
 pkg: clean
-	tar -cvzf c8005-FinalProject.tar.gz *
+	tar -cvzf COMP8005-FinalProject.tar.gz *

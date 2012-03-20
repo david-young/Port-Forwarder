@@ -56,7 +56,7 @@ int main (int argc, char* argv[])
 	int arg, cont=0, sock; 
 	int num_fds, fd_new, epoll_fd;
 	static struct epoll_event events[EPOLL_QUEUE_LEN], event;
-	struct sockaddr_in remote_addr;//FIXME not sure of this var's purpose
+	struct sockaddr_in remote_addr;/*FIXME not sure of this var's purpose */
 	socklen_t addr_size = sizeof(struct sockaddr_in);
 	struct sigaction act;
 	pthread_t record;
@@ -73,78 +73,78 @@ int main (int argc, char* argv[])
 	switch(argc)
 	{
 		case 1:
-			filename = DEFAULT_FILENAME;	// Use the default config filename
+			filename = DEFAULT_FILENAME;	/* Use the default config filename */
 		break;
 		case 2:
-			filename = argv[1];	// Get user specified port
+			filename = argv[1];	/* Get user specified port */
 		break;
 		default:
 			fprintf(stderr, "Usage: %s [configfile \"default name is %s\"]\n", argv[0], DEFAULT_FILENAME);
 			exit(1);
 	}
 
-	// store all the server ip and ports
+	/* store all the server ip and ports */
 	if (readconfigfile(filename))
 		SystemFatal("failed to read configfile");
 
 	if (servers<=0)
 		SystemFatal("no forwarding rules");
 
-	// set up the signal handler to close the server socket when CTRL-c is received
+	/* set up the signal handler to close the server socket when CTRL-c is received */
         act.sa_handler = close_fd;
         act.sa_flags = 0;
         if ((sigemptyset (&act.sa_mask) == -1 || sigaction (SIGINT, &act, NULL) == -1))
 		SystemFatal("Failed to set SIGINT handler");
 
-	// Create the epoll file descriptor
+	/* Create the epoll file descriptor */
 	    	epoll_fd = epoll_create(EPOLL_QUEUE_LEN);
 	    	if (epoll_fd == -1) 
 			SystemFatal("epoll_create");
 
-	//handle all ports supplied in the forwarding rules
+	/*handle all ports supplied in the forwarding rules */
 	for(i = 0; i < servers; i++)
 	{
 		bzero(&fd_servers[i], sizeof(int));
 
-		// Create the listening socket
+		/* Create the listening socket */
 		fd_servers[i] = socket (AF_INET, SOCK_STREAM, 0);
 	    	if (fd_servers[i] == -1) 
 			SystemFatal("socket");
     	
-    		// set SO_REUSEADDR so port can be resused immediately after exit, i.e., after CTRL-c
+    		/* set SO_REUSEADDR so port can be resused immediately after exit, i.e., after CTRL-c */
 	    	arg = 1;
 	    	if (setsockopt (fd_servers[i], SOL_SOCKET, SO_REUSEADDR, &arg, sizeof(arg)) == -1) 
 			SystemFatal("setsockopt");
     	
-    		// Make the server listening socket non-blocking
+    		/* Make the server listening socket non-blocking */
 	    	if (fcntl (fd_servers[i], F_SETFL, O_NONBLOCK | fcntl (fd_servers[i], F_GETFL, 0)) == -1) 
 			SystemFatal("fcntl");
     	
-    		// Bind to the specified listening port
+    		/* Bind to the specified listening port */
 	    	if (bind (fd_servers[i], (struct sockaddr*) &forwardingrules[i], sizeof(forwardingrules[i])) == -1)
 		{
 			printf("%d %s %d\n", i, inet_ntop(AF_INET, &forwardingrules[i].sin_addr, ipbuf, 20), ntohs(forwardingrules[i].sin_port));
 			SystemFatal("bind");
 		}
     	
-    		// Listen for fd_news; SOMAXCONN is 128 by default
+    		/* Listen for fd_news; SOMAXCONN is 128 by default */
 	    	if (listen (fd_servers[i], SOMAXCONN) == -1) 
 			SystemFatal("listen");
     	
-    		// Add the server socket to the epoll event loop
+    		/* Add the server socket to the epoll event loop */
 	    	event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLET;
 	    	event.data.fd = fd_servers[i];
 	    	if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd_servers[i], &event) == -1) 
 			SystemFatal("epoll_ctl");
 	}    	
 	
-	//start thread which loops the server's connection status
+	/*start thread which loops the server's connection status */
 	pthread_create(&record, NULL, looprecord, NULL); 
 
-	// Execute the epoll event loop
+	/* Execute the epoll event loop */
     	while (servers > 0) 
 	{
-		//struct epoll_event events[MAX_EVENTS];
+		/*struct epoll_event events[MAX_EVENTS];*/
 		num_fds = epoll_wait (epoll_fd, events, EPOLL_QUEUE_LEN, -1);
 		if (num_fds < 0) 
 		{
@@ -153,12 +153,12 @@ int main (int argc, char* argv[])
 			SystemFatal ("Error in epoll_wait!");
 		}
 
-		// FIXME ensure different ports can be used in here
-		//	 it'll involve different server sockets
+		/* FIXME ensure different ports can be used in here */
+		/*	 it'll involve different server sockets */
 		for (i = 0; i < num_fds; i++) 
 		{
 
-	    		// Case 1: Error condition
+	    		/* Case 1: Error condition */
 	    		if (events[i].events & (EPOLLHUP | EPOLLERR)) 
 			{
 
@@ -173,13 +173,13 @@ int main (int argc, char* argv[])
 			for (y = 0; y < servers; y++)
 			{
 
-		    		// Case 2: Server is receiving a connection request
+		    		/* Case 2: Server is receiving a connection request */
 		    		if (events[i].data.fd == fd_servers[y]) 
 				{
 
 					bzero(&remote_addr, sizeof(struct sockaddr_in));
-					//FIXME check if the port matches forward rules
-					//socklen_t addr_size = sizeof(remote_addr);
+					/*FIXME check if the port matches forward rules */
+					/*socklen_t addr_size = sizeof(remote_addr); */
 					fd_new = accept (fd_servers[y], (struct sockaddr*) &remote_addr, &addr_size);
 
 					if (fd_new == -1) 
@@ -196,14 +196,14 @@ int main (int argc, char* argv[])
 		    				break;
 					}
 
-					// Make the fd_new non-blocking
+					/* Make the fd_new non-blocking */
 					if (fcntl (fd_new, F_SETFL, O_NONBLOCK | fcntl(fd_new, F_GETFL, 0)) == -1) 
 					{
 						++svr_error;
 						SystemFatal("fcntl");
 					}
 
-					// Add the new socket descriptor to the epoll loop
+					/* Add the new socket descriptor to the epoll loop */
 					event.data.fd = fd_new;
 					++svr_accept;
 					if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd_new, &event) == -1) 
@@ -212,7 +212,7 @@ int main (int argc, char* argv[])
 						SystemFatal ("epoll_ctl");
 					}
 				
-					printf("Remote Address:  %s\n", inet_ntop(AF_INET, &remote_addr.sin_addr, ipbuf, 20));//DEBUG
+					printf("Remote Address:  %s\n", inet_ntop(AF_INET, &remote_addr.sin_addr, ipbuf, 20));/*DEBUG */
 					/* add fd_new and sock to btree & connect to appropriate server */
 					
 					if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
@@ -223,7 +223,7 @@ int main (int argc, char* argv[])
 						perror("Can't connect to server");
 						close(sock);
 						--svr_accept;
-						//shutdown (events[i].data.fd, SHUT_RDWR);
+						/*shutdown (events[i].data.fd, SHUT_RDWR); */
 						close (events[i].data.fd);
 					} else {
 						/* Make the new socket non-blocking */
@@ -265,12 +265,12 @@ int main (int argc, char* argv[])
 			closed if server is offline or client/server
 			send FIN.
 */
-	    		// Case 3: One of the sockets has read data
-			//check if fd is still connected
+	    		/* Case 3: One of the sockets has read data */
+			/*check if fd is still connected */
 	    		if (forwardsocket(events[i].data.fd, tree)) 
 			{
-				// epoll will remove the fd from its set
-				// automatically when the fd is closed
+				/* epoll will remove the fd from its set */
+				/* automatically when the fd is closed */
 				++svr_close;
 				close (events[i].data.fd);
 	    		}
@@ -316,7 +316,7 @@ static int forwardsocket (int fd, BTree *tree)
 		}
 	}
 
-	if (n == 0) //EOF
+	if (n == 0) /* EOF */
 	{
 		return 1;
 	} else if (n == -1 && errno != EAGAIN)	/* error */
@@ -363,14 +363,14 @@ static int forwardsocket (int fd, BTree *tree)
 }
 */
 
-// Prints the error stored in errno and aborts the program.
+/* Prints the error stored in errno and aborts the program. */
 static void SystemFatal(const char* message) 
 {
     perror (message);
     exit (EXIT_FAILURE);
 }
 
-// close fd
+/* close fd */
 void close_fd (int signo)
 {
         for (i = 0; i < servers; i++)
@@ -380,9 +380,9 @@ void close_fd (int signo)
 
 void* looprecord()
 {
-	int svr_complete=0, j=0; // completed connections since last RECORDTIME
-	char time[30]; //gettimeofday buffer
-	struct timeval tv; // time value
+	int svr_complete=0, j=0; /* completed connections since last RECORDTIME */
+	char time[30]; /*gettimeofday buffer */
+	struct timeval tv; /* time value */
 	time_t curtime;
 
 	while(TRUE)
@@ -406,7 +406,7 @@ void* looprecord()
 int readconfigfile(char *filename)
 {
 	FILE *fp;
-	int len; //length of characters in the current line being read
+	int len; /*length of characters in the current line being read */
 	char line[64];
 	fp = fopen(filename, "r");
 	if (fp == NULL)
@@ -417,13 +417,13 @@ int readconfigfile(char *filename)
 		if( line[len-1] == '\n' )
 			line[len-1] = 0;
 
-		// attempt to store current line into forwarding rules
+		/* attempt to store current line into forwarding rules */
 		if (storeipport(line))
 			printf("<configfile:%s> incorrect syntax. \"192.168.0.1:80\"\n", line);
 		else
 			printf("%s successfully added to forwarding rules.\n", line);
 	}
-		// increment servers for every successful ipport added
+		/* increment servers for every successful ipport added */
 	if (fclose(fp))
 		SystemFatal("configfile failed to close");
 	return 0;
@@ -436,27 +436,27 @@ int readconfigfile(char *filename)
 int storeipport(char *ipport)
 {
 	unsigned ip1, ip2, ip3, ip4, port;
-	char	fullip[15];//7 to 15 characters required for ip address. IPs aren't stored as network ips.
+	char	fullip[15];/*7 to 15 characters required for ip address. IPs aren't stored as network ips. */
 	int m;
 	m = sscanf(ipport, "%3u.%3u.%3u.%3u:%u", &ip1, &ip2, &ip3, &ip4, &port);
 	if (m != 5)  /* might be able to remove all these checks except for port checks because of inet_pton();*/
 	{	
-		printf("DEBUG_storeipport_1: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); //DEBUG testing
+		printf("DEBUG_storeipport_1: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); /*DEBUG testing */
 		return 1;
 	}
 	
 	if ((ip1 | ip2 | ip3 | ip4) > MAXIP || port > MAXPORT)
 	{	
-		printf("DEBUG_storeipport_2: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); //DEBUG testing
+		printf("DEBUG_storeipport_2: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); /*DEBUG testing */
 		return 1;
 	}
 
 	if (strspn(ipport, "0123456789.:\n\r") < strlen(ipport))
 	{	
-		printf("DEBUG_storeipport_3: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); //DEBUG testing
+		printf("DEBUG_storeipport_3: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); /*DEBUG testing */
 		return 1;
 	}
-	// ip and port are good. Add data to port fowarder info. 
+	/* ip and port are good. Add data to port fowarder info. */
 	bzero(&forwardingrules[servers], sizeof(struct sockaddr_in));
 	forwardingrules[servers].sin_family = AF_INET;
 	forwardingrules[servers].sin_port = htons(port);
@@ -470,16 +470,16 @@ int storeipport(char *ipport)
 	if (inet_pton(AF_INET, fullip, &forwardingrules_server[servers].sin_addr) != 1)
 		return 1;
 
-/*FIXME Might need this code for later
-//	if (inet_pton(AF_INET, forwardingrules_ip[servers], &forwardingrules[servers].sin_addr) != 1)
-//		return 1;
+/*FIXME Might need this code for later */
+/*	if (inet_pton(AF_INET, forwardingrules_ip[servers], &forwardingrules[servers].sin_addr) != 1) 
+		return 1;*/
 
-//bzero took care of business
-//    	memset (&addr, 0, sizeof (struct sockaddr_in));
+/*bzero took care of business */
+/*    	memset (&addr, 0, sizeof (struct sockaddr_in));
 */
 
-//DEBUG TESTING
-//	printf("DEBUG_storeipport_4: <%u> <%s>\n", ntohs(forwardingrules[servers].sin_port), inet_ntop(AF_INET, &forwardingrules[servers].sin_addr, forwardingrules_ip[servers], sizeof(struct sockaddr_in)));//DEBUG testing
+/*DEBUG TESTING */
+/*	printf("DEBUG_storeipport_4: <%u> <%s>\n", ntohs(forwardingrules[servers].sin_port), inet_ntop(AF_INET, &forwardingrules[servers].sin_addr, forwardingrules_ip[servers], sizeof(struct sockaddr_in)));*/ /*DEBUG testing */
 	servers++;
 
 	return 0;
