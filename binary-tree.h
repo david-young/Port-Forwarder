@@ -18,7 +18,6 @@ typedef struct node {
 
 typedef struct {
 	Node *head;
-	uint32_t n_nodes;
 	int (*__compare_func)(void *item1, void *item2);
 } BTree;
 

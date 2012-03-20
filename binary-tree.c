@@ -25,9 +25,8 @@ BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *)) {
 		return NULL;
 	}
 	
-	if ((btree = (BTree *)malloc(sizeof(BTree))) != NULL) {
+	if ((btree = (BTree *)calloc(1, sizeof(BTree))) != NULL) {
 		btree->head = NULL;
-		btree->n_nodes = 0;
 		btree->__compare_func = compare_func;
 	}
 	
@@ -56,12 +55,12 @@ BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *)) {
 Node *create_node_with_data(void *data, uint32_t data_len) {
 	Node *new_node;
 	
-	/* malloc for new node */
+	/* alloc for new node */
 	if ((new_node = (Node *)calloc(1, sizeof(Node))) == NULL) {
 		return NULL;
 	}
 	
-	/* malloc for data */
+	/* alloc for data */
 	if ((new_node->data = calloc(1, data_len)) == NULL) {
 		return NULL;
 	}
@@ -144,8 +143,6 @@ Node *add_object_to_tree(void *object, uint32_t obj_size, BTree *tree) {
 		
 		new_node->parent = current_node;
 	}
-	
-	tree->n_nodes++;
 	
 	return new_node;
 }
@@ -278,7 +275,6 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 		current_node->left = node_to_delete->left;
 	}
 
-	tree->n_nodes--;
 	free(node_to_delete->data);
 	free(node_to_delete);
 	
