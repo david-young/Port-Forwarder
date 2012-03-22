@@ -264,7 +264,7 @@ int main (int argc, char* argv[]) {
 	returning 0 = keep socket open. 1 = close socket.	*/
 static int forwardsocket (int fd, BTree *tree) {
 	int n = 0;
-	char	buf[BUFLEN];
+	char buf[BUFLEN];
 	int n_sent, n_totalsent;
 	Node *node;
 	connection conn;
@@ -292,10 +292,13 @@ static int forwardsocket (int fd, BTree *tree) {
 		}
 	}
 
-	if (n == 0) { /* EOF */
-		return 1;
-	} else if (n == -1 && errno != EAGAIN) { /* error */
-		perror("recv failed");
+	if (n == 0 || (n == -1 && errno != EAGAIN)) { /* EOF or error */
+		if (n == -1)
+			perror("recv failed");
+
+		if (delete_node(node, tree) <= 0)
+			fprintf(stderr, "Unable to delete node.\n");
+
 		return 1;
 	} else if (n == -1 && errno == EAGAIN) { /* nothing to read right now */
 		return 0;

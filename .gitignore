@@ -1,4 +1,5 @@
 *.o
 *.graffle
+*.swp
 binary-tree
 svr
