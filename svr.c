@@ -30,26 +30,7 @@
 	and Aman Abdulla.
 */
 
-#include <pthread.h>
-#include <sys/time.h>
-#include <time.h>
-#include <assert.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <netdb.h>
-#include <strings.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <signal.h>
-#include "header.h"
+#include "svr.h"
 
 int main (int argc, char* argv[]) {
 	int arg, cont=0, sock; 
@@ -62,7 +43,6 @@ int main (int argc, char* argv[]) {
 	char *filename;
 	char ipbuf[20];
 	BTree *tree;
-	connection conn;
 
 	if ((tree = create_tree_with_cmp_func(comp)) == NULL) {
 		fprintf(stderr, "Couldn't create BinaryTree. Exiting...\n");
@@ -138,7 +118,7 @@ int main (int argc, char* argv[]) {
 	pthread_create(&record, NULL, looprecord, NULL); 
 
 	/* Execute the epoll event loop */
-	while (servers > 0) {
+	while (1) {
 		/*struct epoll_event events[MAX_EVENTS];*/
 		num_fds = epoll_wait (epoll_fd, events, EPOLL_QUEUE_LEN, -1);
 		if (num_fds < 0) {
@@ -215,16 +195,7 @@ int main (int argc, char* argv[]) {
 							SystemFatal("epoll_ctl");
 
 						/* add fd_new and sock to btree */
-						conn.src = fd_new;
-						conn.dst = sock;
-						if (add_object_to_tree((void *)&conn, sizeof(conn), tree) == NULL) {
-							fprintf(stderr, "unable to add node\n");
-						}
-						conn.src = sock;
-						conn.dst = fd_new;
-						if (add_object_to_tree((void *)&conn, sizeof(conn), tree) == NULL) {
-							fprintf(stderr, "unable to add node\n");
-						}
+						add_connection_to_tree(sock, fd_new, tree);
 					}
 
 					cont++;
@@ -262,12 +233,12 @@ int main (int argc, char* argv[]) {
 
 /*	fd is the current file descriptor.
 	returning 0 = keep socket open. 1 = close socket.	*/
-static int forwardsocket (int fd, BTree *tree) {
+int forwardsocket (int fd, BTree *tree) {
 	int n = 0;
 	char buf[BUFLEN];
 	int n_sent, n_totalsent;
 	Node *node;
-	connection conn;
+	Connection conn;
 
 	/* find fd in btree */
 	conn.src = fd;
@@ -276,8 +247,8 @@ static int forwardsocket (int fd, BTree *tree) {
 		return 1;
 	}
 
-	bzero(&conn, sizeof(connection));
-	memcpy(&conn, node->data, sizeof(connection));
+	bzero(&conn, sizeof(Connection));
+	memcpy(&conn, node->data, sizeof(Connection));
 
 	/* read from fd */
 	while ((n = recv (fd, buf, BUFLEN, 0)) > 0) {
@@ -340,7 +311,7 @@ static int forwardsocket (int fd, BTree *tree) {
 */
 
 /* Prints the error stored in errno and aborts the program. */
-static void SystemFatal(const char* message) {
+void SystemFatal(const char* message) {
     perror (message);
     exit (EXIT_FAILURE);
 }
@@ -457,9 +428,9 @@ int storeipport(char *ipport) {
 }
 
 int comp(void *p1, void *p2) {
-	connection *c1, *c2;
-	c1 = (connection *)p1;
-	c2 = (connection *)p2;
+	Connection *c1, *c2;
+	c1 = (Connection *)p1;
+	c2 = (Connection *)p2;
 	
 	if (c1->src > c2->src) {
 		return 1;
