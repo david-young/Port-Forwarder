@@ -195,7 +195,9 @@ int main (int argc, char* argv[]) {
 							SystemFatal("epoll_ctl");
 
 						/* add fd_new and sock to btree */
-						add_connection_to_tree(sock, fd_new, tree);
+						if (add_connection_to_tree(sock, fd_new, tree) == 0) { /* failed */
+							/* handle error */
+						}
 					}
 
 					cont++;
