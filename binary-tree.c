@@ -28,6 +28,7 @@ BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *)) {
 	if ((btree = (BTree *)calloc(1, sizeof(BTree))) != NULL) {
 		btree->head = NULL;
 		btree->__compare_func = compare_func;
+		btree->n_children = 0;
 	}
 	
 	return btree;
@@ -143,6 +144,8 @@ Node *add_object_to_tree(void *object, uint32_t obj_size, BTree *tree) {
 		
 		new_node->parent = current_node;
 	}
+
+	tree->n_children++;
 	
 	return new_node;
 }
@@ -168,7 +171,18 @@ Node *add_object_to_tree(void *object, uint32_t obj_size, BTree *tree) {
  **********************************************************************/
 Node *find_node(void *object, BTree *tree) {
 	Node *current_node = tree->head;
-	
+
+	if (tree == NULL) {
+		printf("tree is null\n");
+		return NULL;
+	} else if (tree->head == NULL) {
+		printf("head is null\n");
+		return NULL;
+	} else if (object == NULL) {
+		printf("object is null\n");
+		return NULL;
+	}
+
 	while (1) {
 		switch (tree->__compare_func(object, current_node->data)) {
 			case -1: /* object should be to the left */
@@ -228,15 +242,21 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 	if (node_to_delete == NULL) {
 		return 0; /* nothing to do */
 	} else if (node_to_delete->left == NULL && node_to_delete->right == NULL) {
-		/* no children makes it a lot easier */
-		current_node = node_to_delete->parent;
-		if (node_to_delete == current_node->left) {
-			current_node->left = NULL;
-		} else if (node_to_delete == current_node->right) {
-			current_node->right = NULL;
-		} else { /* we have a corrupted tree */
-			return -1;
+		if (node_to_delete == tree->head) {
+			tree->head = NULL;
+			current_node = tree->head;
+		} else {
+			/* no children makes it a lot easier */
+			current_node = node_to_delete->parent;
+			if (node_to_delete == current_node->left) {
+				current_node->left = NULL;
+			} else if (node_to_delete == current_node->right) {
+				current_node->right = NULL;
+			} else { /* we have a corrupted tree */
+				return -1;
+			}
 		}
+
 		skip = 1;
 	} else if ((n_children = n_side_children(node_to_delete->left, RIGHT)) == 0 ||
 			   n_side_children(node_to_delete->right, LEFT) > n_children) {
@@ -246,9 +266,15 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 		/* node_to_delete->left will replace node_to_delete */
 		current_node = node_to_delete->left;
 	}
-	
+
+	if (!skip && node_to_delete == tree->head) {
+		tree->head = current_node;
+	}
+
 	/* adjust parent pointers to new anchor node */
 	if (!skip && node_to_delete->parent != NULL) { /* if not head node */
+		if (current_node == NULL)
+			printf("wtf?");
 		current_node->parent = node_to_delete->parent;
 		
 		if (node_to_delete == node_to_delete->parent->left) {
@@ -261,27 +287,30 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 	/* current_node->left->left... = node_to_delete->left ||
 	 current_node->right->right... = node_to_delete->right */
 	
-	if (current_node == node_to_delete->left) {
-		while (current_node->right != NULL) {
-			current_node = current_node->right;
+	if (current_node != NULL) {
+		if (current_node == node_to_delete->left) {
+			while (current_node->right != NULL) {
+				current_node = current_node->right;
+			}
+			
+			current_node->right = node_to_delete->right;
+		} else if (current_node == node_to_delete->right) {
+			while (current_node->left != NULL) {
+				current_node = current_node->left;
+			}
+			
+			current_node->left = node_to_delete->left;
 		}
-		
-		current_node->right = node_to_delete->right;
-	} else if (current_node == node_to_delete->right) {
-		while (current_node->left != NULL) {
-			current_node = current_node->left;
-		}
-		
-		current_node->left = node_to_delete->left;
 	}
 
 	free(node_to_delete->data);
 	free(node_to_delete);
-	
+	tree->n_children--;
+
 	return 1;
 }
 
-/***********************************************************************
+	/***********************************************************************
  * Function: n_side_children
  *
  * Date: March 14, 2012
@@ -303,13 +332,23 @@ int delete_node(Node *node_to_delete, BTree *tree) {
 int n_side_children(Node *node, int side) {
 	Node *current_node = node;
 	int count = 0;
+
+	if (node == NULL) {
+		return -1;
+	}
 	
 	if (side == LEFT) {
+		if (node->left == NULL)
+			return -1;
+
 		while (current_node->left != NULL) {
 			current_node = current_node->left;
 			count++;
 		}
 	} else if (side == RIGHT) {
+		if (node->right == NULL)
+			return -1;
+
 		while (current_node->right != NULL) {
 			current_node = current_node->right;
 			count++;

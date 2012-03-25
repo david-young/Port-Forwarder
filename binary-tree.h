@@ -19,6 +19,7 @@ typedef struct node {
 typedef struct {
 	Node *head;
 	int (*__compare_func)(void *item1, void *item2);
+	uint32_t n_children;
 } BTree;
 
 BTree *create_tree_with_cmp_func(int (*compare_func)(void *, void *));

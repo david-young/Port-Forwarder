@@ -165,7 +165,6 @@ int main (int argc, char* argv[]) {
 
 					/* Add the new socket descriptor to the epoll loop */
 					event.data.fd = fd_new;
-					++svr_accept;
 					if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd_new, &event) == -1) {
 						++svr_error;
 						SystemFatal ("epoll_ctl");
@@ -180,10 +179,10 @@ int main (int argc, char* argv[]) {
 						++svr_error;						
 						perror("Can't connect to server");
 						close(sock);
-						--svr_accept;
 						/*shutdown (events[i].data.fd, SHUT_RDWR); */
 						close (events[i].data.fd);
 					} else {
+						svr_accept += 2;
 						/* make the new socket non-blocking */
 				    	if (fcntl (sock, F_SETFL, O_NONBLOCK | fcntl (sock, F_GETFL, 0)) == -1) 
 							SystemFatal("fcntl sock");
@@ -224,7 +223,7 @@ int main (int argc, char* argv[]) {
 				/* epoll will remove the fd from its set */
 				/* automatically when the fd is closed */
 				++svr_close;
-				close (events[i].data.fd);
+				/*close (events[i].data.fd);*/
 	    	}
 		}
 	} /* end while(servers > 0) */
@@ -242,10 +241,17 @@ int forwardsocket (int fd, BTree *tree) {
 	Node *node;
 	Connection conn;
 
+	printf("request on socket %d\n", fd);
+
 	/* find fd in btree */
 	conn.src = fd;
+/*	if (tree == NULL)
+		printf("here1\n");
+	if (tree->head == NULL)
+		printf("here2\n"); */
 	if ((node = find_node(&conn, tree)) == NULL) {
-		fprintf(stderr, "Couldn't find node\n");
+		fprintf(stderr, "Couldn't find node with src fd %d line %d\n", conn.src, __LINE__);
+		printf("n children: %d\n", tree->n_children);
 		return 1;
 	}
 
@@ -269,8 +275,9 @@ int forwardsocket (int fd, BTree *tree) {
 		if (n == -1)
 			perror("recv failed");
 
-		if (delete_node(node, tree) <= 0)
-			fprintf(stderr, "Unable to delete node.\n");
+		if (remove_connection_from_tree(conn.src, conn.dst, tree) == 1) {
+			printf("n children: %d\n", tree->n_children);
+		}
 
 		return 1;
 	} else if (n == -1 && errno == EAGAIN) { /* nothing to read right now */
