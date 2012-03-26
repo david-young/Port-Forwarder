@@ -61,8 +61,6 @@ int main (int argc, char* argv[]) {
 			exit(1);
 	}
 
-	signal(SIGURG, handle_OOB);
-
 	/* store all the server ip and ports */
 	if (readconfigfile(filename))
 		SystemFatal("failed to read configfile");
@@ -110,7 +108,7 @@ int main (int argc, char* argv[]) {
 			SystemFatal("listen");
 	
 		/* Add the server socket to the epoll event loop */
-		event.events = EPOLLIN | EPOLLERR | EPOLLHUP;
+		event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLPRI;
 		event.data.fd = fd_servers[i];
 		if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd_servers[i], &event) == -1) 
 			SystemFatal("epoll_ctl");
@@ -131,9 +129,11 @@ int main (int argc, char* argv[]) {
 
 		for (i = 0; i < num_fds; i++) {
 			/* Case 1: Error condition */
-			if (events[i].events & (EPOLLHUP | EPOLLERR)) {
+			if (events[i].events & EPOLLPRI) {
+				handle_OOB(events[i].data.fd);
+			} else if (events[i].events & (EPOLLHUP | EPOLLERR)) {
 				++svr_error;
-				fputs("epoll: EPOLLERR", stderr);
+				perror("epoll: EPOLLERR");
 				close(events[i].data.fd);
 				continue;
 			}
@@ -240,10 +240,6 @@ int forwardsocket (int fd, BTree *tree) {
 
 	/* find fd in btree */
 	conn.src = fd;
-/*	if (tree == NULL)
-		printf("here1\n");
-	if (tree->head == NULL)
-		printf("here2\n"); */
 	if ((node = find_node(&conn, tree)) == NULL) {
 		fprintf(stderr, "Couldn't find node with src fd %d line %d\n", conn.src, __LINE__);
 		/*printf("n children: %d\n", tree->n_children);*/ /*DEBUG*/
@@ -383,16 +379,6 @@ int storeipport(char *ipport) {
 	if (inet_pton(AF_INET, fullip, &forwardingrules_server[servers].sin_addr) != 1)
 		return 1;
 
-/*FIXME Might need this code for later */
-/*	if (inet_pton(AF_INET, forwardingrules_ip[servers], &forwardingrules[servers].sin_addr) != 1) 
-		return 1;*/
-
-/*bzero took care of business */
-/*    	memset (&addr, 0, sizeof (struct sockaddr_in));
-*/
-
-/*DEBUG TESTING */
-/*	printf("DEBUG_storeipport_4: <%u> <%s>\n", ntohs(forwardingrules[servers].sin_port), inet_ntop(AF_INET, &forwardingrules[servers].sin_addr, forwardingrules_ip[servers], sizeof(struct sockaddr_in)));*/ /*DEBUG testing */
 	servers++;
 
 	return 0;
