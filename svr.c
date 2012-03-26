@@ -36,7 +36,7 @@ int main (int argc, char* argv[]) {
 	int arg, cont=0, sock; 
 	int num_fds, fd_new, epoll_fd;
 	static struct epoll_event events[EPOLL_QUEUE_LEN], event;
-	struct sockaddr_in remote_addr;/*FIXME not sure of this var's purpose */
+	struct sockaddr_in remote_addr;
 	socklen_t addr_size = sizeof(struct sockaddr_in);
 	struct sigaction act;
 	pthread_t record;
@@ -108,7 +108,7 @@ int main (int argc, char* argv[]) {
 			SystemFatal("listen");
 	
 		/* Add the server socket to the epoll event loop */
-		event.events = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLET;
+		event.events = EPOLLIN | EPOLLERR | EPOLLHUP;
 		event.data.fd = fd_servers[i];
 		if (epoll_ctl (epoll_fd, EPOLL_CTL_ADD, fd_servers[i], &event) == -1) 
 			SystemFatal("epoll_ctl");
@@ -119,6 +119,7 @@ int main (int argc, char* argv[]) {
 
 	/* Execute the epoll event loop */
 	while (1) {
+
 		/*struct epoll_event events[MAX_EVENTS];*/
 		num_fds = epoll_wait (epoll_fd, events, EPOLL_QUEUE_LEN, -1);
 		if (num_fds < 0) {
@@ -126,8 +127,6 @@ int main (int argc, char* argv[]) {
 			SystemFatal ("Error in epoll_wait!");
 		}
 
-		/* FIXME ensure different ports can be used in here */
-		/*	 it'll involve different server sockets */
 		for (i = 0; i < num_fds; i++) {
 			/* Case 1: Error condition */
 			if (events[i].events & (EPOLLHUP | EPOLLERR)) {
@@ -143,7 +142,7 @@ int main (int argc, char* argv[]) {
 				/* Case 2: Server is receiving a connection request */
 				if (events[i].data.fd == fd_servers[y]) {
 					bzero(&remote_addr, sizeof(struct sockaddr_in));
-					/*FIXME check if the port matches forward rules */
+
 					/*socklen_t addr_size = sizeof(remote_addr); */
 					fd_new = accept (fd_servers[y], (struct sockaddr*) &remote_addr, &addr_size);
 
@@ -170,13 +169,13 @@ int main (int argc, char* argv[]) {
 						SystemFatal ("epoll_ctl");
 					}
 				
-					printf("Remote Address:  %s\n", inet_ntop(AF_INET, &remote_addr.sin_addr, ipbuf, 20));/*DEBUG */
+/*					printf("Remote Address:  %s\n", inet_ntop(AF_INET, &remote_addr.sin_addr, ipbuf, 20));*//*DEBUG */
 					
 					if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 						SystemFatal("Couldn't create server socket");
 
 					if (connect(sock, (struct sockaddr *)&forwardingrules_server[y], sizeof(forwardingrules_server[y])) == -1) {
-						++svr_error;						
+						++svr_error;
 						perror("Can't connect to server");
 						close(sock);
 						/*shutdown (events[i].data.fd, SHUT_RDWR); */
@@ -209,20 +208,14 @@ int main (int argc, char* argv[]) {
 				continue;
 			}
 
-			/* FIXME this code deals with the data. Either
-			forward it to server or client */			
-			/* FIXME how the if statement and forwardsocket
-			is handled might need modification to match when
-			the socket is closed. Socket should only be
-			closed if server is offline or client/server
-			send FIN. */
+
 	    	
 			/* Case 3: One of the sockets has read data */
 			/*check if fd is still connected */
 			if (forwardsocket(events[i].data.fd, tree)) {
 				/* epoll will remove the fd from its set */
 				/* automatically when the fd is closed */
-				++svr_close;
+				svr_close += 2;
 				/*close (events[i].data.fd);*/
 	    	}
 		}
@@ -241,7 +234,7 @@ int forwardsocket (int fd, BTree *tree) {
 	Node *node;
 	Connection conn;
 
-	printf("request on socket %d\n", fd);
+/*	printf("request on socket %d\n", fd);*/ /*DEBUG*/
 
 	/* find fd in btree */
 	conn.src = fd;
@@ -251,73 +244,52 @@ int forwardsocket (int fd, BTree *tree) {
 		printf("here2\n"); */
 	if ((node = find_node(&conn, tree)) == NULL) {
 		fprintf(stderr, "Couldn't find node with src fd %d line %d\n", conn.src, __LINE__);
-		printf("n children: %d\n", tree->n_children);
+		/*printf("n children: %d\n", tree->n_children);*/ /*DEBUG*/
 		return 1;
 	}
 
 	bzero(&conn, sizeof(Connection));
 	memcpy(&conn, node->data, sizeof(Connection));
 
+
+
 	/* read from fd */
 	while ((n = recv (fd, buf, BUFLEN, 0)) > 0) {
 		/* send to destination on conn.dst */
 		n_sent = 0, n_totalsent = 0;
-		while (n_totalsent != n && (n_sent = send (conn.dst, buf+n_totalsent, n-n_totalsent, 0)) != -1) {
+
+		while (n_totalsent != n && (n_sent = send (conn.dst, buf+n_totalsent, n-n_totalsent, 0))) {
+			if (n_sent == -1) {
+/*				++svr_error;*/
+/*				perror("send failed");*//*DEBUG*/
+				continue;
+			}
 			n_totalsent += n_sent;
 		}
 
 		if (n_sent == -1) {
-			perror("send");
+/*			++svr_error;*/
+/*			perror("send failed");*//*DEBUG*/
 		}
 	}
 
-	if (n == 0 || (n == -1 && errno != EAGAIN)) { /* EOF or error */
-		if (n == -1)
+	if (n == 0 || (n == -1 && errno != EAGAIN && errno != EWOULDBLOCK)) { /* EOF or error */
+		if (n == -1) {
+			++svr_error;
 			perror("recv failed");
-
+		}
 		if (remove_connection_from_tree(conn.src, conn.dst, tree) == 1) {
-			printf("n children: %d\n", tree->n_children);
+			/*printf("n children: %d\n", tree->n_children);*/
 		}
 
 		return 1;
-	} else if (n == -1 && errno == EAGAIN) { /* nothing to read right now */
+	} else if (n == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) { /* nothing to read right now */
+
 		return 0;
 	}
-	
+
 	return 0; 
 }
-
-
-
-/*	int	n, bytes_to_read;
-	char	*bp, buf[buflen];
-
-	n = 0;
-	bp = buf;
-	bytes_to_read = buflen;
-
-	while (n < buflen)
-	{
-		n = recv (fd, bp, bytes_to_read, 0);
-		if (n==0) //End of file. The remote has closed the connection.
-		{
-			fd_i[i] = 0;
-			return 1; //close fd
-		}
-
-			bp += n;
-			bytes_to_read -= n;
-	}
-
-	send (fd, buf, buflen, 0);
-	fd_i[i]++;
-	if (fd_i[i] < numit)
-		return 0;
-	fd_i[i] = 0;
-	return 1; //close fd
-
-}
-*/
 
 /* Prints the error stored in errno and aborts the program. */
 void SystemFatal(const char* message) {
@@ -346,7 +318,7 @@ void* looprecord() {
 		curtime = tv.tv_sec;
 		strftime(time,30,"%m-%d-%Y  %H:%M:%S.",localtime(&curtime));
 
-		printf("%s%ld \tErrors: %i \tCompleted: %i \tActive: %i \tCompleted/Update(%is): %i\n", time,tv.tv_usec, svr_error, svr_close, svr_accept-svr_close, RECORDTIME, svr_complete);
+		printf("%s%ld \tTCP Errors: %i \tCompleted: %i \tActive: %i \tCompleted/Update(%is): %i\n", time,tv.tv_usec, svr_error, svr_close/2, (svr_accept-svr_close)/2, RECORDTIME, svr_complete/2);
 		sleep(RECORDTIME);
 	}
 	return 0;
@@ -370,7 +342,7 @@ int readconfigfile(char *filename) {
 
 		/* attempt to store current line into forwarding rules */
 		if (storeipport(line))
-			printf("<configfile:%s> incorrect syntax. \"192.168.0.1:80\"\n", line);
+			printf("<configfile:%s> incorrect syntax. Use: \"192.168.0.1:80\"\n", line);
 		else
 			printf("%s successfully added to forwarding rules.\n", line);
 	}
@@ -388,22 +360,10 @@ int readconfigfile(char *filename) {
 int storeipport(char *ipport) {
 	unsigned ip1, ip2, ip3, ip4, port;
 	char	fullip[15];/*7 to 15 characters required for ip address. IPs aren't stored as network ips. */
-	int m;
-	m = sscanf(ipport, "%3u.%3u.%3u.%3u:%u", &ip1, &ip2, &ip3, &ip4, &port);
+	sscanf(ipport, "%u.%u.%u.%u:%u", &ip1, &ip2, &ip3, &ip4, &port);
 	
-	/* might be able to remove all these checks except for port checks because of inet_pton();*/
-	if (m != 5) {	
-		printf("DEBUG_storeipport_1: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); /*DEBUG testing */
-		return 1;
-	}
-	
-	if ((ip1 | ip2 | ip3 | ip4) > MAXIP || port > MAXPORT) {
-		printf("DEBUG_storeipport_2: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); /*DEBUG testing */
-		return 1;
-	}
-
-	if (strspn(ipport, "0123456789.:\n\r") < strlen(ipport)) {
-		printf("DEBUG_storeipport_3: %u.%u.%u.%u:%u <%s>", ip1, ip2, ip3, ip4, port, ipport); /*DEBUG testing */
+	/* only need to check port because inet_pton handles correct ip address syntax */
+	if (port > MAXPORT || port < 0) {
 		return 1;
 	}
 

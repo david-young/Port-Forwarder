@@ -25,7 +25,7 @@ int add_connection_to_tree(int sock1, int sock2, BTree *tree) {
 	if (find_node(&conn, tree) == NULL)
 		fprintf(stderr, "Node was not saved successfully.\n");
 
-	printf("n children: %d\n", tree->n_children);
+/*	printf("n children: %d\n", tree->n_children);*//*DEBUG*/
 
 	return 1;
 }
@@ -34,7 +34,7 @@ int remove_connection_from_tree(int sock1, int sock2, BTree *tree) {
 	Connection conn;
 	Node *node;
 
-	printf("src %d dst %d\n", sock1, sock2);
+/*	printf("src %d dst %d\n", sock1, sock2);*//*DEBUG*/
 	
 	conn.src = sock2;
 	if ((node = find_node(&conn, tree)) == NULL) {

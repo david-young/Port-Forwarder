@@ -31,7 +31,7 @@
 #define MAXIP			255
 #define DEFAULT_FILENAME	"servers.config"
 #define MAX_RULES		100	/* max number of portforwarding rules */
-#define BUFLEN			1024
+#define BUFLEN			10240
 
 /* Globals */
 int i, y;
