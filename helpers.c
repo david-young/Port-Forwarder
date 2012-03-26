@@ -70,3 +70,6 @@ int remove_connection_from_tree(int sock1, int sock2, BTree *tree) {
 	return 1;
 }
 
+void handle_OOB(int param) {
+	printf("Received OOB data! We don't care!\n");
+}

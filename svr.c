@@ -61,6 +61,8 @@ int main (int argc, char* argv[]) {
 			exit(1);
 	}
 
+	signal(SIGURG, handle_OOB);
+
 	/* store all the server ip and ports */
 	if (readconfigfile(filename))
 		SystemFatal("failed to read configfile");
