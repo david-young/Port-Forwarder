@@ -1,0 +1,15 @@
+Binary Tree
+-----------
+In order to map source sockets to desination sockets, we decided to use a binary tree. While we could have used a sufficiently large array to store all the sockets, that would have been inefficient in terms of space (if using socket numbers as the index) or in terms of speed (if searching sequentially for matches). Also, neither of us were keen on switching over to C++ just to have a more convenient data storage mechanism. Instead, David went ahead and wrote a binary tree as a test to see if it was feasible, and to have an interesting task to work on. The idea behind using a binary tree is that in the worst case, you're searching in linear time, and in the best case you're searching in log2(n). The tree makes a minimal attempt to rebalance itself when nodes are deleted, but it may still be almost entirely linear (depending on data to be stored and the user-provided comparison function). The binary tree code was written to be generic (so that anything can be stored in it) and the sorting/finding of nodes is done by using a user-provided comparison function, in which they determine whether a node's data is less than, equal to, or greather than the supplied value.
+
+calloc vs malloc
+----------------
+The decision behind using calloc instead of the more commonly used malloc is one of bug-avoidance. If we are given memory that has already been zeroed out, we have no need to worry about any previous contents.
+
+NULL-pointer checks in binary tree
+----------------------------------
+In order to avoid issues with the binary tree that may arise due to users of the tree code not knowing what they're doing, we have had to add a number of additional checks for NULL-pointers. We found a few instances where an improperly called function caused the program to segfault. Adding the NULL-pointer checks solved that problem, and reduced the chance of security issues down the road, as previous memory contents should no longer be accessed accidentally.
+ 
+binary tree testing
+-------------------
+In order to verify that nodes in the tree could be created, located, and deleted, we had to create a means to represent the tree's current state in such a way that we would be able to check it ourselves. To solve this, David created a traversal function which loops through the tree and outputs all the nodes in the order they're traversed in. Using this information, we're able to match it up with a diagram of the code's expected behavriour. To build the testing executable, simply run "make btree-test" from within the source folder. To run it, simply type "./btree-test". The node traversal should follow the pattern of the three diagrams in the "Design Work" folder.
